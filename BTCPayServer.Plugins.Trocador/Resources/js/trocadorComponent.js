@@ -4,7 +4,12 @@ function isZeroAmount(str) {
 }
 
 function getUrl(that) {
-  const { model, markupPercentage, address, orderAmount } = that;
+  const {
+    model,
+    markupPercentage,
+    address: overrideAddress,
+    orderAmount: overrideAmount,
+  } = that;
   const {
     fiatDenominated,
     defaultPaymentMethodId,
@@ -17,7 +22,10 @@ function getUrl(that) {
     itemDesc,
     paymentMethodId,
     btcDue,
-    btcAddress: toCurrencyAddress,
+    btcAddress,
+    address: modelAddress,
+    due,
+    orderAmount: modelOrderAmount,
     customerEmail,
     brandColor,
     orderAmountFiat,
@@ -28,9 +36,12 @@ function getUrl(that) {
       ? defaultPaymentMethodId
       : paymentMethodId;
 
-  const toCurrencyDue = markupPercentage
-    ? btcDue * (1 + markupPercentage / 100)
-    : btcDue;
+  const toCurrencyAddress = overrideAddress || btcAddress || modelAddress;
+  const baseDue = btcDue || modelOrderAmount || due;
+  const toCurrencyDue =
+    markupPercentage && baseDue
+      ? baseDue * (1 + markupPercentage / 100)
+      : baseDue;
 
   // -- Required Params --
   let tickerTo = toCurrency;
@@ -52,7 +63,7 @@ function getUrl(that) {
   }
 
   // -- Optional Params --
-  let amount = orderAmount || toCurrencyDue;
+  let amount = overrideAmount || toCurrencyDue;
 
   let fromPreset = "&ticker_from=xmr&network_from=Mainnet";
 
@@ -114,7 +125,7 @@ function getUrl(that) {
     "https://trocador.app/anonpay/?" +
     `ticker_to=${tickerTo}` +
     `&network_to=${networkTo}` +
-    `&address=${address || toCurrencyAddress}` +
+    `&address=${toCurrencyAddress}` +
     (amount ? `&amount=${amount}` : "") +
     (storeName ? `&name=${storeName}` : "") +
     (itemDesc ? `&description=${itemDesc}` : "") +
@@ -172,17 +183,21 @@ Vue.component("TrocadorCheckout", {
       }
     },
     updateData(data) {
-      const { invoiceBitcoinUrl, orderAmount } = data;
+      const { invoiceBitcoinUrl, address, orderAmount, due } = data;
 
-      this.address = invoiceBitcoinUrl.substring(
-        invoiceBitcoinUrl.indexOf(":") > -1
-          ? invoiceBitcoinUrl.indexOf(":") + 1
-          : 0,
-        invoiceBitcoinUrl.indexOf("?") > -1
-          ? invoiceBitcoinUrl.indexOf("?")
-          : invoiceBitcoinUrl.length
-      );
-      this.orderAmount = orderAmount;
+      this.address =
+        address ||
+        (invoiceBitcoinUrl
+          ? invoiceBitcoinUrl.substring(
+              invoiceBitcoinUrl.indexOf(":") > -1
+                ? invoiceBitcoinUrl.indexOf(":") + 1
+                : 0,
+              invoiceBitcoinUrl.indexOf("?") > -1
+                ? invoiceBitcoinUrl.indexOf("?")
+                : invoiceBitcoinUrl.length
+            )
+          : undefined);
+      this.orderAmount = orderAmount || due;
     },
   },
 });
