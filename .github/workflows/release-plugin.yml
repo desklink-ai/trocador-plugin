@@ -1,0 +1,41 @@
+name: Build and release .btcpay plugin
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths: [".github/workflows/release-plugin.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish plugin
+        run: dotnet publish BTCPayServer.Plugins.Trocador/BTCPayServer.Plugins.Trocador.csproj -c Release -o publish
+
+      - name: Pack plugin
+        run: dotnet run -c Release --project btcpayserver/BTCPayServer.PluginPacker -- "$GITHUB_WORKSPACE/publish" BTCPayServer.Plugins.Trocador "$GITHUB_WORKSPACE/packed"
+
+      - name: Create release with .btcpay attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          find packed -type f -exec ls -l {} \;
+          gh release create "build-${{ github.run_number }}" \
+            packed/BTCPayServer.Plugins.Trocador/*/BTCPayServer.Plugins.Trocador.btcpay \
+            packed/BTCPayServer.Plugins.Trocador/*/BTCPayServer.Plugins.Trocador.btcpay.json \
+            packed/BTCPayServer.Plugins.Trocador/*/SHA256SUMS \
+            --target "${{ github.sha }}" --prerelease \
+            --title "Trocador plugin build ${{ github.run_number }} (BTCPay 2.x checkout fix)" \
+            --notes "Built from ${{ github.sha }}."
